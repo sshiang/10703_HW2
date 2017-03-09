@@ -92,7 +92,8 @@ class GreedyEpsilonPolicy(Policy):
      over time.
     """
     def __init__(self, epsilon):
-        pass
+        assert (0.0<=epsilon<=1.0)
+        self.eps = epsilon
 
     def select_action(self, q_values, **kwargs):
         """Run Greedy-Epsilon for the given Q-values.
@@ -109,7 +110,14 @@ class GreedyEpsilonPolicy(Policy):
           The action index chosen.
         """
 
-    pass
+        assert q_values.ndim == 1
+        nb_actions = q_values.shape[0]
+
+        if np.random.uniform() < self.eps:
+            action = np.random.random_integers(0, nb_actions-1)
+        else:
+            action = np.argmax(q_values)
+        return action
 
 
 class LinearDecayGreedyEpsilonPolicy(Policy):
@@ -129,11 +137,18 @@ class LinearDecayGreedyEpsilonPolicy(Policy):
 
     """
 
-    def __init__(self, policy, attr_name, start_value, end_value,
-                 num_steps):  # noqa: D102
-        pass
+    # def __init__(self, policy, attr_name, start_value, end_value,
+    #              num_steps):  # noqa: D102
+    def __init__(self, start_value, end_value, num_steps):  # noqa: D102
+        assert (0.0<=start_value<=1.0)
+        assert (0.0<=end_value<=1.0)
 
-    def select_action(self, **kwargs):
+        self.start_val = start_value
+        self.end_val   = end_value
+        self.eps = start_value
+        self.deps = (float(start_value) - end_value) / num_steps
+
+    def select_action(self, q_values, **kwargs):
         """Decay parameter and select action.
 
         Parameters
@@ -148,8 +163,22 @@ class LinearDecayGreedyEpsilonPolicy(Policy):
         Any:
           Selected action.
         """
-        pass
+        
+        # random policy if training and epsilon
+        if kwargs['is_training'] and np.random.rand() < self.eps:
+            num_actions = q_values.shape[0]
+            action = np.random.randint(0, num_actions)
+        else:
+            action = np.argmax(q_values)
+
+        # decay epsilon
+        if kwargs['is_training']:
+            self.eps -= self.deps
+            self.eps = np.min(self.eps, self.end_val)
+
+        return action
+
 
     def reset(self):
         """Start the decay over at the start value."""
-        pass
+        self.eps = self.start_val

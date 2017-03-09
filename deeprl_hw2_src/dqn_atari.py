@@ -8,13 +8,17 @@ import numpy as np
 import tensorflow as tf
 from keras.layers import (Activation, Convolution2D, Dense, Flatten, Input,
                           Permute)
-from keras.models import Model
+from keras.models import (Model, Sequential)
 from keras.optimizers import Adam
 
 import deeprl_hw2 as tfrl
 from deeprl_hw2.dqn import DQNAgent
 from deeprl_hw2.objectives import mean_huber_loss
+from deeprl_hw2.preprocessors import *
+from deeprl_hw2.policy import *
+from deeprl_hw2.memory import SequentialMemory
 
+from ipdb import set_trace as debug
 
 def create_model(window, input_shape, num_actions,
                  model_name='q_network'):  # noqa: D103
@@ -45,7 +49,34 @@ def create_model(window, input_shape, num_actions,
     keras.models.Model
       The Q-model.
     """
-    pass
+
+    with tf.name_scope(model_name):
+        # Build Convs
+        S = Input(shape=input_shape + (window,))
+        H = Convolution2D(32, 8, 8, activation='relu', subsample=(4, 4))(S)
+        H = Convolution2D(64, 4, 4, activation='relu', subsample=(2, 2))(H)
+        H = Convolution2D(64, 3, 3, activation='relu', subsample=(1, 1))(H)
+        H = Flatten()(H)
+
+        # FIXME
+        if model_name == 'dueling_dqn':
+            V = Dense(512, activation='relu')(H)
+            V = Dense(1, activation='linear')(V)
+
+            A = Dense(512, activation='relu')(H)
+            A = Dense(num_actions, activation='linear')(A)
+
+            # Q = V + A - K.mean(A)
+            Q = Lambda(lambda x: x[0] + x[1] - K.mean(x[1], keepdims=True))([V,A])
+
+        else:
+            Q = Dense(512, activation='relu')(H)
+            Q = Dense(num_actions, activation='linear')(Q)
+
+        model = Model(input=S, output=Q)
+
+    print(model.summary())
+    return model
 
 
 def get_output_folder(parent_dir, env_name):
@@ -92,14 +123,67 @@ def main():  # noqa: D103
         '-o', '--output', default='atari-v0', help='Directory to save data to')
     parser.add_argument('--seed', default=0, type=int, help='Random seed')
 
+    # hyper-parameters
+    parser.add_argument('--gamma',default=0.99, type=float, help='discount factor')
+    parser.add_argument('--lr',default=0.0001, type=float, help='learning rate')
+    parser.add_argument('--eps',default=0.05, type=float, help='epsilon')
+    parser.add_argument('--training_steps',default=5000000, type=int, help='')
+    parser.add_argument('--input_shape', default=84, type=int, help='Input size')
+    parser.add_argument('--window', default=4, type=int, help='Window size')
+    parser.add_argument('--rb_size',default=1000000, type=int, help='replay buffer size')
+    parser.add_argument('--target_update_freq',default=10000, type=int, help='q target interval')
+    parser.add_argument('--warmup',default=200, type=int, help='fill replay buffer')
+    parser.add_argument('--train_freq',default=10000, type=int, help='train_freq')
+    parser.add_argument('--batch_size',default=32, type=int, help='batch_size') # FIXME
+
+    # policy options
+    parser.add_argument(
+        '--policy', default='greedy_eps_decay', type=str, help='Options: uniform_random/greedy/greedy_eps/greedy_eps_decay')
+    parser.add_argument('--eps_min',default=0.0, type=float, help='epsilon min value')
+    parser.add_argument('--eps_steps',default=10000, type=int, help='epsilon decay steps')
+
     args = parser.parse_args()
-    args.input_shape = tuple(args.input_shape)
+    args.input_shape = tuple((args.input_shape,args.input_shape)) # FIXME
 
     args.output = get_output_folder(args.output, args.env)
 
     # here is where you should start up a session,
     # create your DQN agent, create your model, etc.
     # then you can run your fit method.
+
+    env = gym.make(args.env)
+    num_actions = env.action_space.n
+
+    q_network = create_model(args.window, args.input_shape, num_actions, model_name='q_network') 
+
+    preprocessor = PreprocessorSequence([
+        AtariPreprocessor(args.input_shape), 
+        HistoryPreprocessor(args.window),
+    ])
+
+    memory = SequentialMemory(args.rb_size, args.window)
+
+    policy = {
+        'uniform_random':UniformRandomPolicy(num_actions),
+        'greedy':GreedyPolicy(),
+        'greedy_eps':GreedyEpsilonPolicy(args.eps),
+        'greedy_eps_decay':LinearDecayGreedyEpsilonPolicy(args.eps, args.eps_min, args.eps_steps),
+    }.get(args.policy)
+
+    agent = DQNAgent(
+        num_actions,
+        q_network,
+        preprocessor,
+        memory,
+        policy,
+        args.gamma,
+        args.target_update_freq,
+        args.warmup, # num_burn_in,
+        args.train_fraq, # train_freq,
+        args.batch_size
+    )
+
+    # agent.fit ...
 
 if __name__ == '__main__':
     main()

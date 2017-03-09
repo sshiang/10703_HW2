@@ -24,18 +24,26 @@ class HistoryPreprocessor(Preprocessor):
     """
 
     def __init__(self, history_length=1):
-        pass
+        self.history_length = history_length
+        self.reset()
 
     def process_state_for_network(self, state):
         """You only want history when you're deciding the current action to take."""
-        pass
+
+        if self.history is None:
+            self.history = np.dstack((state, state, state, state))
+        else:
+            self.history = np.dstack((self.history[:,:,1:], state))
+
+        assert slef.history.shape[-1] == self.history_length
+        return self.history
 
     def reset(self):
         """Reset the history sequence.
 
         Useful when you start a new episode.
         """
-        pass
+        self.history = None
 
     def get_config(self):
         return {'history_length': self.history_length}
@@ -78,7 +86,22 @@ class AtariPreprocessor(Preprocessor):
     """
 
     def __init__(self, new_size):
-        pass
+        self.new_size = new_size
+
+    def _process_state(self, state, convert_type):
+        """
+        convert_type: str ('unit8' or 'float32')
+        """
+        assert state.ndim == 3  # (height, width, channel)
+
+        img = Image.fromarray(state)
+        img = img.resize(self.new_size).convert('L')  # resize and convert to grayscale
+        
+        processed_observation = np.array(img)
+        assert processed_observation.shape == self.new_size
+
+        return processed_observation.astype(convert_type) 
+               
 
     def process_state_for_memory(self, state):
         """Scale, convert to greyscale and store as uint8.
@@ -90,7 +113,7 @@ class AtariPreprocessor(Preprocessor):
         We recommend using the Python Image Library (PIL) to do the
         image conversions.
         """
-        pass
+        return self._process_state(state, 'uint8')
 
     def process_state_for_network(self, state):
         """Scale, convert to greyscale and store as float32.
@@ -98,7 +121,7 @@ class AtariPreprocessor(Preprocessor):
         Basically same as process state for memory, but this time
         outputs float32 images.
         """
-        pass
+        return self._process_state(state, 'float32')
 
     def process_batch(self, samples):
         """The batches from replay memory will be uint8, convert to float32.
@@ -107,11 +130,20 @@ class AtariPreprocessor(Preprocessor):
         samples from the replay memory. Meaning you need to convert
         both state and next state values.
         """
-        pass
+        # state, action, reward, next_state, is_terminal
+        processed_batch = [Sample(
+            sample.state.astype('float32'),
+            sample.action,
+            sample.reward,
+            sample.next_state.astype('float32'),
+            sample.is_terminal,
+        ) for sample in samples]
+
+        return processed_batch
 
     def process_reward(self, reward):
         """Clip reward between -1 and 1."""
-        pass
+        return np.clip(reward, -1., 1.)
 
 
 class PreprocessorSequence(Preprocessor):
@@ -121,11 +153,29 @@ class PreprocessorSequence(Preprocessor):
 
     For example, if you call the process_state_for_network and you
     have a sequence of AtariPreproccessor followed by
-    HistoryPreprocessor. This this class could implement a
+    HistoryPreprocessor. This class could implement a
     process_state_for_network that does something like the following:
 
     state = atari.process_state_for_network(state)
     return history.process_state_for_network(state)
     """
     def __init__(self, preprocessors):
-        pass
+        # FIXME
+        self.atari = preprocessors[0]
+        self.history = preprocessors[1]
+
+    def process_state_for_network(self, state):
+        state = self.atari.process_state_for_network(state)
+        return self.history.process_state_for_network(state)
+
+    def process_state_for_memory(self, state):
+        return self.atari.process_state_for_memory(state)
+
+    def process_batch(self, samples):
+        return self.atari.process_batch(samples)
+
+    def process_reward(self, reward):
+        return self.atari.process_reward(reward)
+
+    def reset(self):
+        self.history.reset()

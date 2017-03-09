@@ -32,7 +32,12 @@ class Sample:
     is_terminal: boolean
       True if this action finished the episode. False otherwise.
     """
-    pass
+    def __init__(self, state, action, reward, next_state, is_terminal):
+      self.state = state
+      self.action = action
+      self.reward = reward
+      self.next_state = next_state
+      self.is_terminal = is_terminal
 
 
 class Preprocessor:
@@ -205,16 +210,18 @@ class ReplayMemory:
         We recommend using a list as a ring buffer. Just track the
         index where the next sample should be inserted in the list.
         """
-        pass
+        self.max_size = max_size
+        self.window_length = window_length
 
-    def append(self, state, action, reward):
+    def append(self, state, action, reward, terminal):
         raise NotImplementedError('This method should be overridden')
 
-    def end_episode(self, final_state, is_terminal):
-        raise NotImplementedError('This method should be overridden')
+    # def end_episode(self, final_state, is_terminal):
+    #     raise NotImplementedError('This method should be overridden')
 
     def sample(self, batch_size, indexes=None):
         raise NotImplementedError('This method should be overridden')
 
     def clear(self):
         raise NotImplementedError('This method should be overridden')
+

@@ -1,5 +1,8 @@
 """Main DQN agent."""
 
+import numpy as np
+from deeprl_hw2 import utils
+
 class DQNAgent:
     """Class implementing DQN.
 
@@ -39,16 +42,32 @@ class DQNAgent:
       How many samples in each minibatch.
     """
     def __init__(self,
+                 num_actions,
                  q_network,
                  preprocessor,
                  memory,
                  policy,
                  gamma,
                  target_update_freq,
-                 num_burn_in,
+                 warmup, #num_burn_in,
                  train_freq,
                  batch_size):
-        pass
+
+        self.model = q_network
+        self.preprocessor = preprocessor
+        self.memory = memory
+        self.policy = policy
+        self.gamma = gamma
+        self.tau = 1. / target_update_freq
+        self.warmup = warmup
+        self.train_freq = train_freq
+        self.batch_size = batch_size
+        self.nb_actions = num_actions
+
+        self.step = 0
+        self.rand_policy = lambda: np.random.randint(0, self.num_actions)
+        self.training = True
+
 
     def compile(self, optimizer, loss_func):
         """Setup all of the TF graph variables/ops.
@@ -69,7 +88,7 @@ class DQNAgent:
         """
         pass
 
-    def calc_q_values(self, state):
+    def calc_q_values(self, states):
         """Given a state (or batch of states) calculate the Q-values.
 
         Basically run your network on these states.
@@ -78,7 +97,13 @@ class DQNAgent:
         ------
         Q-values for the state(s)
         """
-        pass
+        if not isinstance(states, list):
+            states = [states]
+        batch = self.preprocessor.process_batch(states)
+        q_values = self.model.predict_on_batch(batch)
+        assert q_values.shape == (len(states), self.nb_actions)
+        return q_values
+
 
     def select_action(self, state, **kwargs):
         """Select the action based on the current state.
@@ -101,7 +126,17 @@ class DQNAgent:
         --------
         selected action
         """
-        pass
+
+        # select action
+        process_state = self.preprocessor.process_state_for_network(state) 
+        if self.step < self.warmup:
+            action = self.rand_policy()
+        else:
+            q_values = self.calc_q_values(process_state)
+            action = self.policy.select_action(q_values,**kwargs)
+
+        return action
+
 
     def update_policy(self):
         """Update your policy.
@@ -118,7 +153,16 @@ class DQNAgent:
         You might want to return the loss and other metrics as an
         output. They can help you monitor how training is going.
         """
-        pass
+        
+        assert self.training
+        if self.step < self.warmup:
+            return
+
+        batch = self.memory.sample(self.batch_size)
+
+        # TODO
+        # self.tau
+
 
     def fit(self, env, num_iterations, max_episode_length=None):
         """Fit your model to the provided environment.
@@ -145,7 +189,54 @@ class DQNAgent:
           How long a single episode should last before the agent
           resets. Can help exploration.
         """
-        pass
+        
+        self.training = True
+        self.step = 0
+        observation = None
+        while self.step < num_iterations:
+
+            # reset if it is the start of episode
+            if observation is None:
+                observation = self.env.reset()
+                episode_steps = 0
+                episode_reward = 0.
+            assert (observation is not None and episode_steps is not None and episode_reward is not None)
+
+            # basic operation, action ,reward, blablabla ...
+            action = self.select_action(observation)
+            observation2, r, done, info = self.env.step(action)
+            reward = self.preprocessor.process_reward(r)
+            episode_reward += reward
+
+            if max_episode_length and episode_steps >= max_episode_length -1:
+                done = True
+
+            # add replay memory and update policy            
+            self.memory.append(
+              self.preprocessor.process_state_for_memory(observation), 
+              action, reward, done
+            )
+            if self.step % self.train_freq == 0:
+                self.update_policy()
+
+            episode_steps += 1
+            self.step += 1
+
+            if done: # end of episode
+                # # We are in a terminal state but the agent hasn't yet seen it. We therefore
+                # # perform one more forward-backward call and simply ignore the action before
+                # # resetting the environment. We need to pass in `terminal=False` here since
+                # # the *next* state, that is the state of the newly reset environment, is
+                # # always non-terminal by convention.
+                # self.forward(observation)
+                # self.backward(0., terminal=False)
+
+                observation = None
+                episode_steps = None
+                episode_reward = None
+            else:
+                observation = observation2
+            
 
     def evaluate(self, env, num_episodes, max_episode_length=None):
         """Test your agent with a provided environment.
@@ -161,3 +252,6 @@ class DQNAgent:
         visually inspect your policy.
         """
         pass
+
+        self.training = False
+        # TODO
