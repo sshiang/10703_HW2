@@ -3,6 +3,7 @@
 import tensorflow as tf
 import semver
 
+# from ipdb import set_trace as debug
 
 def huber_loss(y_true, y_pred, max_grad=1.):
     """Calculate the huber loss.
@@ -24,10 +25,14 @@ def huber_loss(y_true, y_pred, max_grad=1.):
     tf.Tensor
       The huber loss.
     """
-    return tf.cond(
-      tf.abs(y_true-y_pred) <= max_grad, 
-      lambda: 0.5*tf.square(y_true-y_pred), 
-      lambda: max_grad*tf.abs(y_true-y_pred)-0.5*max_grad*max_grad
+    assert max_grad > 0.
+
+    x = y_true - y_pred
+
+    return tf.select(
+      tf.abs(x) <= max_grad, 
+      .5*tf.square(x),
+      max_grad*tf.abs(x)-.5*max_grad*max_grad
     )
 
 def mean_huber_loss(y_true, y_pred, max_grad=1.):
@@ -51,4 +56,5 @@ def mean_huber_loss(y_true, y_pred, max_grad=1.):
     tf.Tensor
       The mean huber loss.
     """
-    return tf.reduce_mean(huber_loss(y_true,y_pred,max_grad))
+    loss = huber_loss(y_true,y_pred,max_grad)
+    return tf.reduce_mean(loss, 0) # TODO

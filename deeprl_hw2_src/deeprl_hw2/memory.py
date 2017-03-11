@@ -34,12 +34,12 @@ class RingBuffer(object):
     def clear(self):
         self.start = 0
         self.length = 0
-        self.data = [None for _ in range(max_size)]
+        self.data = [None for _ in range(self.maxlen)]
 
 class SequentialMemory(ReplayMemory):
 
-    def __init__(self, **kwargs):
-        super(SequentialMemory, self).__init__(**kwargs)
+    def __init__(self, *args):
+        super(SequentialMemory, self).__init__(*args)
         self.actions = RingBuffer(self.max_size)
         self.rewards = RingBuffer(self.max_size)
         self.states  = RingBuffer(self.max_size)

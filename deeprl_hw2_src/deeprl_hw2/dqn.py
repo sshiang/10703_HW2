@@ -1,9 +1,17 @@
 """Main DQN agent."""
 
 import numpy as np
-from deeprl_hw2 import utils
+import keras.backend as K
 
-class DQNAgent:
+from keras.layers import Lambda, Input
+from keras.models import Model
+
+from deeprl_hw2 import utils
+from objectives import mean_huber_loss
+
+from ipdb import set_trace as debug
+
+class DQNAgent: 
     """Class implementing DQN.
 
     This is a basic outline of the functions/parameters you will need
@@ -65,8 +73,11 @@ class DQNAgent:
         self.nb_actions = num_actions
 
         self.step = 0
-        self.rand_policy = lambda: np.random.randint(0, self.num_actions)
-        self.training = True
+        self.rand_policy = lambda: np.random.randint(0, num_actions)
+        self.is_training = True
+        self.use_ddqn = False # FIXME
+        self.compiled = False
+        self.soft_update = True
 
 
     def compile(self, optimizer, loss_func):
@@ -86,9 +97,51 @@ class DQNAgent:
         keras.optimizers.Optimizer class. Specifically the Adam
         optimizer.
         """
-        pass
+        
+        self.compiled = False
+        self.target_model = utils.clone_model(self.model)
+        self.target_model.compile(optimizer='sgd', loss='mse')
+        self.model.compile(optimizer='sgd', loss='mse')
 
-    def calc_q_values(self, states):
+        # build loss tensor
+        def mask_loss(args):
+            y_true, y_pred, mask = args
+            if loss_func == 'huber_loss':
+                loss = mean_huber_loss(y_true, mask*y_pred) # TODO: check max_grad in original paper
+            else:
+                raise RuntimeError('undefined loss_func:{}'.format(loss_func))
+            return loss
+
+        y_pred = self.model.output
+        y_true = Input(name='y_true', shape=(self.nb_actions,))
+        mask = Input(name='mask', shape=(self.nb_actions,))
+        loss_out = Lambda(mask_loss, output_shape=(1,), name='loss')([y_true, y_pred, mask])
+        
+        # build optimizer
+        if self.soft_update:
+            updates = utils.get_soft_target_model_updates(self.target_model, self.model, self.tau)
+        else:
+            updates = utils.get_hard_target_model_updates(self.target_model, self.model)
+        optimizer = utils.AdditionalUpdatesOptimizer(optimizer, updates)
+
+        # build metrics TODO
+        metrics = lambda y_true, y_pred: K.mean(K.max(y_pred, axis=-1))
+
+        # build trainable model
+        trainable_model = Model(input=[self.model.input, y_true, mask], output=[loss_out, y_pred])
+        assert len(trainable_model.output_names) == 2
+        combined_metrics = {trainable_model.output_names[1]: metrics}
+        losses = [
+            lambda y_true, y_pred: y_pred,  # loss is computed in Lambda layer
+            lambda y_true, y_pred: K.zeros_like(y_pred),  # we only include this for the metrics
+        ]
+        trainable_model.compile(optimizer=optimizer, loss=losses, metrics=combined_metrics)
+        self.trainable_model = trainable_model
+
+        # finish
+        self.compiled = True
+
+    def calc_q_values(self, states, model):
         """Given a state (or batch of states) calculate the Q-values.
 
         Basically run your network on these states.
@@ -97,10 +150,10 @@ class DQNAgent:
         ------
         Q-values for the state(s)
         """
-        if not isinstance(states, list):
-            states = [states]
-        batch = self.preprocessor.process_batch(states)
-        q_values = self.model.predict_on_batch(batch)
+        
+        if states.ndim < 4:
+            states = states[None,...]
+        q_values = model.predict_on_batch(states)
         assert q_values.shape == (len(states), self.nb_actions)
         return q_values
 
@@ -126,14 +179,15 @@ class DQNAgent:
         --------
         selected action
         """
-
-        # select action
         process_state = self.preprocessor.process_state_for_network(state) 
         if self.step < self.warmup:
             action = self.rand_policy()
         else:
-            q_values = self.calc_q_values(process_state)
-            action = self.policy.select_action(q_values,**kwargs)
+            meta = {
+                'is_training': self.is_training
+            }
+            q_values = self.calc_q_values(process_state, self.model)
+            action = self.policy.select_action(q_values, **meta)
 
         return action
 
@@ -154,14 +208,58 @@ class DQNAgent:
         output. They can help you monitor how training is going.
         """
         
-        assert self.training
-        if self.step < self.warmup:
-            return
+        assert self.is_training
 
+        # prepare batch
         batch = self.memory.sample(self.batch_size)
+        state_batch, action_batch, reward_batch, next_state_batch, terminal_batch = \
+            self.preprocessor.process_batch(samples)
 
-        # TODO
-        # self.tau
+        # calculate target 
+        if self.use_ddqn:
+            """ y^{DDQN}_i = r_i + \gamma Q^{'}(s_{i+1},argmax_a Q(s_{i+1},a))"""
+            
+            # random switch online_model and target_model? FIXME
+            m1, m2 = (self.model, self.target_model) if np.random.rand() < 0.5 else (self.target_model,self.model)
+            
+            # cal actions based on online_model(m1)
+            online_q = self.calc_q_values(next_state_batch, m1)
+            assert target_q.shape == (self.batch_size, self.nb_actions)
+            actions = np.argmax(online_q, axis=1)
+            
+            # cal target q based on target_model(m2)
+            target_q = self.calc_q_values(next_state_batch, m2)
+            assert target_q.shape == (self.batch_size, self.nb_actions)
+            
+            # cal q_batch
+            q_batch  = target_q[range(self.batch_size), actions]
+        else:
+            """ y^{DQN}_i = r_i + \gamma max_a Q^{'}(s_{i+1},a) """
+
+            # cal target q based on target_model
+            target_q = self.calc_q_values(next_state_batch, self.target_model)
+            assert target_q.shape == (self.batch_size, self.nb_actions)
+
+            # cal q_batch
+            q_batch = np.max(target_q,axis=1).flatten()
+        assert q_batch.shape == (self.batch_size,)
+        targets = reward_batch + terminal_batch*self.gamma*q_batch
+        assert targets == (self.batch_size,)
+
+        # prepare for q-update
+        targets_batch = np.zeros((self.batch_size, self.nb_actions))
+        targets_batch[range(self.batch_size), action_batch] = targets
+        
+        masks_batch = np.zeros((self.batch_size, self.nb_actions))
+        masks_batch[range(self.batch_size), action_batch] = 1.
+        
+        # q-update
+        metrics = self.trainable_model.train_on_batch(
+            [state_batch, targets_batch, masks_batch], 
+            [np.zeros((self.batch_size,)), targets_batch]
+        )
+
+        return metrics
 
 
     def fit(self, env, num_iterations, max_episode_length=None):
@@ -189,22 +287,24 @@ class DQNAgent:
           How long a single episode should last before the agent
           resets. Can help exploration.
         """
-        
-        self.training = True
+        assert self.compiled
+
+        self.is_training = True
         self.step = 0
         observation = None
         while self.step < num_iterations:
 
             # reset if it is the start of episode
             if observation is None:
-                observation = self.env.reset()
+                observation = env.reset()
                 episode_steps = 0
                 episode_reward = 0.
+                self.preprocessor.reset()
             assert (observation is not None and episode_steps is not None and episode_reward is not None)
 
             # basic operation, action ,reward, blablabla ...
             action = self.select_action(observation)
-            observation2, r, done, info = self.env.step(action)
+            observation2, r, done, info = env.step(action)
             reward = self.preprocessor.process_reward(r)
             episode_reward += reward
 
@@ -216,7 +316,7 @@ class DQNAgent:
               self.preprocessor.process_state_for_memory(observation), 
               action, reward, done
             )
-            if self.step % self.train_freq == 0:
+            if self.step > self.warmup and self.step % self.train_freq == 0:
                 self.update_policy()
 
             episode_steps += 1
@@ -253,5 +353,5 @@ class DQNAgent:
         """
         pass
 
-        self.training = False
+        self.is_training = False
         # TODO

@@ -174,7 +174,7 @@ class LinearDecayGreedyEpsilonPolicy(Policy):
         # decay epsilon
         if kwargs['is_training']:
             self.eps -= self.deps
-            self.eps = np.min(self.eps, self.end_val)
+            self.eps = min(self.eps, self.end_val)
 
         return action
 

@@ -2,7 +2,23 @@
 
 import semver
 import tensorflow as tf
+from keras.models import model_from_config
+import keras.optimizers as optimizers
 
+class AdditionalUpdatesOptimizer(optimizers.Optimizer):
+    def __init__(self, optimizer, additional_updates):
+        super(AdditionalUpdatesOptimizer, self).__init__()
+        self.optimizer = optimizer
+        self.additional_updates = additional_updates
+
+    def get_updates(self, params, constraints, loss):
+        updates = self.optimizer.get_updates(params, constraints, loss)
+        updates += self.additional_updates
+        self.updates = updates
+        return self.updates
+
+    def get_config(self):
+        return self.optimizer.get_config()
 
 def get_uninitialized_variables(variables=None):
     """Return a list of uninitialized tf variables.
@@ -37,6 +53,16 @@ def get_uninitialized_variables(variables=None):
     return [v for v, f in zip(variables, init_flag) if not f]
 
 
+def clone_model(model):
+    # Requires Keras 1.0.7 since get_config has breaking changes.
+    config = {
+        'class_name': model.__class__.__name__,
+        'config': model.get_config(),
+    }
+    clone = model_from_config(config)
+    clone.set_weights(model.get_weights())
+    return clone
+
 def get_soft_target_model_updates(target, source, tau):
     r"""Return list of target model update ops.
 
@@ -64,7 +90,15 @@ def get_soft_target_model_updates(target, source, tau):
     list(tf.Tensor)
       List of tensor update ops.
     """
-    pass
+    target_weights = target.trainable_weights + sum([l.non_trainable_weights for l in target.layers], [])
+    source_weights = source.trainable_weights + sum([l.non_trainable_weights for l in source.layers], [])
+    assert len(target_weights) == len(source_weights)
+
+    # Create updates.
+    updates = []
+    for tw, sw in zip(target_weights, source_weights):
+        updates.append((tw, tau * sw + (1. - tau) * tw))
+    return updates
 
 
 def get_hard_target_model_updates(target, source):
@@ -85,4 +119,12 @@ def get_hard_target_model_updates(target, source):
     list(tf.Tensor)
       List of tensor update ops.
     """
-    pass
+    target_weights = target.trainable_weights + sum([l.non_trainable_weights for l in target.layers], [])
+    source_weights = source.trainable_weights + sum([l.non_trainable_weights for l in source.layers], [])
+    assert len(target_weights) == len(source_weights)
+
+    # Create updates.
+    updates = []
+    for tw, sw in zip(target_weights, source_weights):
+        updates.append((tw, sw))
+    return updates

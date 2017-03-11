@@ -160,7 +160,7 @@ class Preprocessor:
         pass
 
 
-class ReplayMemory:
+class ReplayMemory(object):
     """Interface for replay memories.
 
     We have found this to be a useful interface for the replay

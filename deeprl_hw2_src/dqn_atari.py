@@ -4,6 +4,7 @@ import argparse
 import os
 import random
 
+import gym
 import numpy as np
 import tensorflow as tf
 from keras.layers import (Activation, Convolution2D, Dense, Flatten, Input,
@@ -98,7 +99,9 @@ def get_output_folder(parent_dir, env_name):
     parent_dir/run_dir
       Path to this run's save directory.
     """
-    os.makedirs(parent_dir, exist_ok=True)
+    # os.makedirs(parent_dir, exist_ok=True) # FIXME
+    if not os.path.exists(parent_dir):
+        os.makedirs(parent_dir)
     experiment_id = 0
     for folder_name in os.listdir(parent_dir):
         if not os.path.isdir(os.path.join(parent_dir, folder_name)):
@@ -134,7 +137,8 @@ def main():  # noqa: D103
     parser.add_argument('--target_update_freq',default=10000, type=int, help='q target interval')
     parser.add_argument('--warmup',default=200, type=int, help='fill replay buffer')
     parser.add_argument('--train_freq',default=10000, type=int, help='train_freq')
-    parser.add_argument('--batch_size',default=32, type=int, help='batch_size') # FIXME
+    parser.add_argument('--batch_size',default=32, type=int, help='batch_size') # FIXME check paper
+    parser.add_argument('--episode_len',default=100000, type=int, help='max episode length')
 
     # policy options
     parser.add_argument(
@@ -179,11 +183,14 @@ def main():  # noqa: D103
         args.gamma,
         args.target_update_freq,
         args.warmup, # num_burn_in,
-        args.train_fraq, # train_freq,
+        args.train_freq, # train_freq,
         args.batch_size
     )
 
-    # agent.fit ...
+
+    optimizer = Adam(args.lr)
+    agent.compile(optimizer, 'huber_loss')
+    agent.fit(env,args.training_steps) # args.episode_len
 
 if __name__ == '__main__':
     main()

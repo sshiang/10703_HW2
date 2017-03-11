@@ -35,7 +35,7 @@ class HistoryPreprocessor(Preprocessor):
         else:
             self.history = np.dstack((self.history[:,:,1:], state))
 
-        assert slef.history.shape[-1] == self.history_length
+        assert self.history.shape[-1] == self.history_length
         return self.history
 
     def reset(self):
@@ -131,15 +131,25 @@ class AtariPreprocessor(Preprocessor):
         both state and next state values.
         """
         # state, action, reward, next_state, is_terminal
-        processed_batch = [Sample(
-            sample.state.astype('float32'),
-            sample.action,
-            sample.reward,
-            sample.next_state.astype('float32'),
-            sample.is_terminal,
-        ) for sample in samples]
+        # processed_batch = [Sample(
+        #     sample.state.astype('float32'),
+        #     sample.action,
+        #     sample.reward,
+        #     sample.next_state.astype('float32'),
+        #     sample.is_terminal,
+        # ) for sample in samples]
 
-        return processed_batch
+        state_batch = np.array([ 
+            s.state.astype('float32') for s in samples
+        ])
+        action_batch = np.array([ s.action for s in samples])
+        reward_batch = np.array([ s.reward for s in samples])
+        terminal_batch = np.array([ 0. if s.is_terminal else 1. for s in samples])
+        next_state_batch = np.array([ 
+            s.next_state.astype('float32') for s in samples
+        ])
+
+        return state_batch, action_batch, reward_batch, next_state_batch, terminal_batch
 
     def process_reward(self, reward):
         """Clip reward between -1 and 1."""
