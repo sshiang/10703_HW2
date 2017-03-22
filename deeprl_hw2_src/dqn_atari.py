@@ -146,12 +146,15 @@ def main():  # noqa: D103
         '--policy', default='greedy_eps_decay', type=str, help='Options: uniform_random/greedy/greedy_eps/greedy_eps_decay')
     parser.add_argument('--eps_min',default=0.0, type=float, help='epsilon min value')
     parser.add_argument('--eps_steps',default=10000, type=int, help='epsilon decay steps')
+
     parser.add_argument('--debug', dest='debug', action='store_true')
+    parser.add_argument('--mode', default='train', type=str)
 
     args = parser.parse_args()
     args.input_shape = tuple((args.input_shape,args.input_shape)) # FIXME
 
     args.output = get_output_folder(args.output, args.env)
+    print(args.output)
 
     # here is where you should start up a session,
     # create your DQN agent, create your model, etc.
@@ -198,8 +201,22 @@ def main():  # noqa: D103
     if args.debug: prGreen('compile ...')
     agent.compile(optimizer, 'huber_loss')
 
-    if args.debug: prGreen('fit ...')
-    agent.fit(env,args.training_steps) # args.episode_len
+    if args.mode == 'train':    
+        if args.debug: prGreen('fit ...')
+        agent.fit(env,args.training_steps) # args.episode_len
+        agent.save_weights(
+            '{}-weights.h5f'.format(args.output),
+            overwrite=True,
+        )
+    elif args.mode == 'test':
+        if args.debug: prGreen('evaluate ...')
+        agent.load_weihts(
+            '{}-weights.h5f'.format(args.output),
+        )
+        agent.evaluate(env,1)
+
+    else:
+        raise RuntimeError('un-supported mode:{}'.format(args.mode))
 
 if __name__ == '__main__':
     main()

@@ -2,3 +2,4 @@ build/*
 *.pyc
 keras-2.0.0/*
 keras/*
+atari-v0/*

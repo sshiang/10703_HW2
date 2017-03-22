@@ -130,14 +130,6 @@ class AtariPreprocessor(Preprocessor):
         samples from the replay memory. Meaning you need to convert
         both state and next state values.
         """
-        # state, action, reward, next_state, is_terminal
-        # processed_batch = [Sample(
-        #     sample.state.astype('float32'),
-        #     sample.action,
-        #     sample.reward,
-        #     sample.next_state.astype('float32'),
-        #     sample.is_terminal,
-        # ) for sample in samples]
 
         state_batch = np.array([ 
             s.state.astype('float32') for s in samples

@@ -94,9 +94,6 @@ class SequentialMemory(ReplayMemory):
                 if current_idx < 0 or current_terminal:
                     break
                 state0.insert(0, self.states[current_idx])
-
-            # print(np.array(state0).shape)
-
             while len(state0) < self.window_length:
                 state0.insert(0, np.zeros(state0[0].shape))
 
@@ -116,7 +113,9 @@ class SequentialMemory(ReplayMemory):
             terminal1 = self.terminals[idx - 1]
 
             # build sample
-            samples.append(Sample(state0, action, reward, state1, terminal1))
+            samples.append(
+                Sample(state0, action, reward, state1, terminal1)
+            )
 
         assert len(samples) == batch_size
         return samples

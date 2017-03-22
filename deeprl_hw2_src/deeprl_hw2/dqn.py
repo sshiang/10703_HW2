@@ -1,6 +1,7 @@
 """Main DQN agent."""
 
 import numpy as np
+from copy import deepcopy
 import keras.backend as K
 
 from keras.layers import Lambda, Input
@@ -8,7 +9,6 @@ from keras.models import Model
 
 from deeprl_hw2 import utils
 from deeprl_hw2.objectives import mean_huber_loss
-# from objectives import mean_huber_loss
 
 from ipdb import set_trace as debug
 
@@ -217,16 +217,16 @@ class DQNAgent:
         state_batch, action_batch, reward_batch, next_state_batch, terminal_batch = \
             self.preprocessor.process_batch(batch)
 
-        # calculate target 
+        # calculate q
         if self.use_ddqn:
-            """ y^{DDQN}_i = r_i + \gamma Q^{'}(s_{i+1},argmax_a Q(s_{i+1},a))"""
+            """ q^{DDQN}_i = Q^{'}(s_{i+1},argmax_a Q(s_{i+1},a))"""
             
             # random switch online_model and target_model? FIXME
             m1, m2 = (self.model, self.target_model) if np.random.rand() < 0.5 else (self.target_model,self.model)
             
             # cal actions based on online_model(m1)
             online_q = self.calc_q_values(next_state_batch, m1)
-            assert target_q.shape == (self.batch_size, self.nb_actions)
+            assert online_q.shape == (self.batch_size, self.nb_actions)
             actions = np.argmax(online_q, axis=1)
             
             # cal target q based on target_model(m2)
@@ -236,7 +236,7 @@ class DQNAgent:
             # cal q_batch
             q_batch  = target_q[range(self.batch_size), actions]
         else:
-            """ y^{DQN}_i = r_i + \gamma max_a Q^{'}(s_{i+1},a) """
+            """ q^{DQN}_i = max_a Q^{'}(s_{i+1},a) """
 
             # cal target q based on target_model
             target_q = self.calc_q_values(next_state_batch, self.target_model)
@@ -244,22 +244,23 @@ class DQNAgent:
 
             # cal q_batch
             q_batch = np.max(target_q,axis=1).flatten()
-
         assert q_batch.shape == (self.batch_size,)
-        targets = reward_batch + terminal_batch*self.gamma*q_batch
 
+        # calculate target
+        """ y_i = r_i + \gamma * q_i """
+        targets = reward_batch + terminal_batch*self.gamma*q_batch
         assert targets.shape == (self.batch_size,)
 
         # prepare for q-update
         targets_batch = np.zeros((self.batch_size, self.nb_actions))
         targets_batch[range(self.batch_size), action_batch] = targets
+        targets_batch = targets_batch.astype('float32')
         
         masks_batch = np.zeros((self.batch_size, self.nb_actions))
         masks_batch[range(self.batch_size), action_batch] = 1.
+        masks_batch = masks_batch.astype('float32')
         
         # q-update
-        # print('state_batch:{}, targets_batch:{}, masks_batch:{}'.format(state_batch.shape, targets_batch.shape, masks_batch.shape))
-        # debug()
         metrics = self.trainable_model.train_on_batch(
             [state_batch, targets_batch, masks_batch],
             [np.zeros((self.batch_size,)), targets_batch]
@@ -302,10 +303,13 @@ class DQNAgent:
 
             # reset if it is the start of episode
             if observation is None:
-                observation = env.reset()
+                self.reset()
+                observation = deepcopy(env.reset())
                 episode_steps = 0
                 episode_reward = 0.
-                self.preprocessor.reset()
+
+                # TODO random start (keras-rl has this option)
+                
             assert (observation is not None and episode_steps is not None and episode_reward is not None)
 
             # basic operation, action ,reward, blablabla ...
@@ -328,23 +332,27 @@ class DQNAgent:
             episode_steps += 1
             self.step += 1
 
+            observation = deepcopy(observation2)
             if done: # end of episode
                 # # We are in a terminal state but the agent hasn't yet seen it. We therefore
                 # # perform one more forward-backward call and simply ignore the action before
                 # # resetting the environment. We need to pass in `terminal=False` here since
                 # # the *next* state, that is the state of the newly reset environment, is
                 # # always non-terminal by convention.
-                # self.forward(observation)
-                # self.backward(0., terminal=False)
+                self.memory.append(
+                    self.preprocessor.process_state_for_memory(observation),
+                    self.select_action(observation),
+                    0., False
+                )
+                if self.step > self.warmup and self.step % self.train_freq == 0:
+                    self.update_policy()
 
                 observation = None
                 episode_steps = None
                 episode_reward = None
-            else:
-                observation = observation2
             
 
-    def evaluate(self, env, num_episodes, max_episode_length=None):
+    def evaluate(self, env, num_episodes, max_episode_length=None, visualize=False):
         """Test your agent with a provided environment.
         
         You shouldn't update your network parameters here. Also if you
@@ -357,7 +365,50 @@ class DQNAgent:
         You can also call the render function here if you want to
         visually inspect your policy.
         """
-        pass
+        assert self.compiled
 
         self.is_training = False
-        # TODO
+        self.step = 0
+        observation = None
+        for episode in range(num_episodes):
+
+            # reset at the start of episode
+            self.reset()
+            observation = deepcopy(env.reset())
+            episode_steps = 0
+            episode_reward = 0.
+
+            # TODO random start (keras-rl has this option)
+                
+            assert observation is not None
+
+            # start episode
+            done = False
+            while not done:
+                # basic operation, action ,reward, blablabla ...
+                action = self.select_action(observation)
+                observation, r, done, info = env.step(action)
+                reward = self.preprocessor.process_reward(r)
+                if max_episode_length and episode_steps >= max_episode_length -1:
+                    done = True
+                
+                if visualize:
+                    env.render(mode='human')
+                    
+                # update
+                observation = deepcopy(observation)
+                episode_reward += reward
+                episode_steps += 1
+                self.step += 1          
+
+    def load_weights(self, filepath):
+        self.model.load_weights(filepath)
+        self.update_target_model_hard()
+
+    def save_weights(self, filepath, overwrite=False):
+        self.model.save_weights(filepath, overwrite=overwrite)
+
+    def reset(self):
+        self.preprocessor.reset()
+        self.model.reset_states()
+        self.target_model.reset_states()
