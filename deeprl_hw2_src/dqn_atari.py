@@ -195,7 +195,7 @@ def main():  # noqa: D103
         args.warmup, # num_burn_in,
         args.train_freq, # train_freq,
         args.batch_size,
-        args.model_name == 'ddqn',
+        args.model == 'ddqn',
     )
 
     optimizer = Adam(args.lr)

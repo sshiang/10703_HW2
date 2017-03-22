@@ -10,6 +10,7 @@ from keras.models import Model
 from deeprl_hw2 import utils
 from deeprl_hw2.objectives import mean_huber_loss
 
+from scipy.misc import imsave
 from ipdb import set_trace as debug
 
 class DQNAgent: 
@@ -140,6 +141,7 @@ class DQNAgent:
         ]
         trainable_model.compile(optimizer=optimizer, loss=losses, metrics=combined_metrics)
         self.trainable_model = trainable_model
+        # debug()
 
         # finish
         self.compiled = True
@@ -182,13 +184,19 @@ class DQNAgent:
         --------
         selected action
         """
-        process_state = self.preprocessor.process_state_for_network(state) 
+        process_state = self.preprocessor.process_state_for_network(state)
         if self.step < self.warmup:
             action = self.rand_policy()
         else:
             meta = {
                 'is_training': self.is_training
             }
+            # temp = np.zeros((168,168))
+            # temp[:84,:84] = process_state[:,:,0]
+            # temp[:84,84:] = process_state[:,:,1]
+            # temp[84:,:84] = process_state[:,:,2]
+            # temp[84:,84:] = process_state[:,:,3]
+            # imsave('debug/fig/process_state{}.png'.format(self.step), temp)
             q_values = self.calc_q_values(process_state, self.model)
             action = self.policy.select_action(q_values, **meta)
 
@@ -299,6 +307,7 @@ class DQNAgent:
 
         self.is_training = True
         self.step = 0
+        episode = 0
         observation = None
         while self.step < num_iterations:
 
@@ -335,6 +344,7 @@ class DQNAgent:
 
             observation = deepcopy(observation2)
             if done: # end of episode
+                utils.prGreen('#{}: episode_steps:{} episode_reward:{}'.format(episode,episode_steps,episode_reward))
                 # # We are in a terminal state but the agent hasn't yet seen it. We therefore
                 # # perform one more forward-backward call and simply ignore the action before
                 # # resetting the environment. We need to pass in `terminal=False` here since
@@ -351,7 +361,8 @@ class DQNAgent:
                 observation = None
                 episode_steps = None
                 episode_reward = None
-            
+                episode += 1
+
 
     def evaluate(self, env, num_episodes, max_episode_length=None, visualize=False):
         """Test your agent with a provided environment.
