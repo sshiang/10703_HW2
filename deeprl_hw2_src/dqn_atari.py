@@ -18,6 +18,7 @@ from deeprl_hw2.objectives import mean_huber_loss
 from deeprl_hw2.preprocessors import *
 from deeprl_hw2.policy import *
 from deeprl_hw2.memory import SequentialMemory
+from deeprl_hw2.utils import (prRed, prGreen, prYellow)
 
 from ipdb import set_trace as debug
 
@@ -145,6 +146,7 @@ def main():  # noqa: D103
         '--policy', default='greedy_eps_decay', type=str, help='Options: uniform_random/greedy/greedy_eps/greedy_eps_decay')
     parser.add_argument('--eps_min',default=0.0, type=float, help='epsilon min value')
     parser.add_argument('--eps_steps',default=10000, type=int, help='epsilon decay steps')
+    parser.add_argument('--debug', dest='debug', action='store_true')
 
     args = parser.parse_args()
     args.input_shape = tuple((args.input_shape,args.input_shape)) # FIXME
@@ -154,19 +156,22 @@ def main():  # noqa: D103
     # here is where you should start up a session,
     # create your DQN agent, create your model, etc.
     # then you can run your fit method.
-
     env = gym.make(args.env)
     num_actions = env.action_space.n
 
+    if args.debug: prGreen('initial q network')
     q_network = create_model(args.window, args.input_shape, num_actions, model_name='q_network') 
 
+    if args.debug: prGreen('initial preprocessor')
     preprocessor = PreprocessorSequence([
         AtariPreprocessor(args.input_shape), 
         HistoryPreprocessor(args.window),
     ])
 
+    if args.debug: prGreen('initial sequential memory')
     memory = SequentialMemory(args.rb_size, args.window)
 
+    if args.debug: prGreen('initial policy')
     policy = {
         'uniform_random':UniformRandomPolicy(num_actions),
         'greedy':GreedyPolicy(),
@@ -174,6 +179,7 @@ def main():  # noqa: D103
         'greedy_eps_decay':LinearDecayGreedyEpsilonPolicy(args.eps, args.eps_min, args.eps_steps),
     }.get(args.policy)
 
+    if args.debug: prGreen('initial agent')
     agent = DQNAgent(
         num_actions,
         q_network,
@@ -187,9 +193,12 @@ def main():  # noqa: D103
         args.batch_size
     )
 
-
     optimizer = Adam(args.lr)
+
+    if args.debug: prGreen('compile ...')
     agent.compile(optimizer, 'huber_loss')
+
+    if args.debug: prGreen('fit ...')
     agent.fit(env,args.training_steps) # args.episode_len
 
 if __name__ == '__main__':

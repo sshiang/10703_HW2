@@ -6,6 +6,8 @@ from collections import deque, namedtuple
 from deeprl_hw2 import utils
 from deeprl_hw2.core import ReplayMemory, Sample
 
+from ipdb import set_trace as debug
+
 class RingBuffer(object):
     def __init__(self, maxlen):
         self.maxlen = maxlen
@@ -47,7 +49,10 @@ class SequentialMemory(ReplayMemory):
 
     def _sample_batch_indexes(self, low, high, size):
         if high - low >= size:
-            r = xrange(low, high)
+            try:
+                r = xrange(low, high) 
+            except NameError:
+                r = range(low, high) 
             batch_idxs = random.sample(r, size)
         else:
             # warnings.warn('Not enough entries to sample without replacement. Consider increasing your warm-up phase to avoid oversampling!')
@@ -90,7 +95,7 @@ class SequentialMemory(ReplayMemory):
                     break
                 state0.insert(0, self.states[current_idx])
 
-            print np.array(state0).shape
+            # print(np.array(state0).shape)
 
             while len(state0) < self.window_length:
                 state0.insert(0, np.zeros(state0[0].shape))
@@ -98,8 +103,9 @@ class SequentialMemory(ReplayMemory):
             # fill state1
             state1 = [np.copy(x) for x in state0[1:]]
             state1.append(self.states[idx])
-	
-	    assert len(state1) == len(state0)
+            # debug()
+            assert len(state0) == self.window_length
+            assert len(state1) == len(state0)
 
             state0 = np.transpose(np.array(state0), (1,2,0))
             state1 = np.transpose(np.array(state1), (1,2,0))

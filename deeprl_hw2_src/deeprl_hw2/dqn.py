@@ -108,10 +108,11 @@ class DQNAgent:
         def mask_loss(args):
             y_true, y_pred, mask = args
             if loss_func == 'huber_loss':
-                loss = mean_huber_loss(y_true, mask*y_pred) # TODO: check max_grad in original paper
+                loss = mean_huber_loss(y_true, y_pred) # TODO: check max_grad in original paper
             else:
                 raise RuntimeError('undefined loss_func:{}'.format(loss_func))
-            return loss
+            loss *= mask
+            return K.sum(loss, axis=-1)
 
         y_pred = self.model.output
         y_true = Input(name='y_true', shape=(self.nb_actions,))
@@ -257,8 +258,10 @@ class DQNAgent:
         masks_batch[range(self.batch_size), action_batch] = 1.
         
         # q-update
+        # print('state_batch:{}, targets_batch:{}, masks_batch:{}'.format(state_batch.shape, targets_batch.shape, masks_batch.shape))
+        # debug()
         metrics = self.trainable_model.train_on_batch(
-            [state_batch, targets_batch, masks_batch], 
+            [state_batch, targets_batch, masks_batch],
             [np.zeros((self.batch_size,)), targets_batch]
         )
 

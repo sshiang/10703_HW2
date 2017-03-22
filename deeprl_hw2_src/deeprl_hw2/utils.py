@@ -5,6 +5,16 @@ import tensorflow as tf
 from keras.models import model_from_config
 import keras.optimizers as optimizers
 
+def prRed(prt): print("\033[91m {}\033[00m" .format(prt))
+def prGreen(prt): print("\033[92m {}\033[00m" .format(prt))
+def prYellow(prt): print("\033[93m {}\033[00m" .format(prt))
+def prLightPurple(prt): print("\033[94m {}\033[00m" .format(prt))
+def prPurple(prt): print("\033[95m {}\033[00m" .format(prt))
+def prCyan(prt): print("\033[96m {}\033[00m" .format(prt))
+def prLightGray(prt): print("\033[97m {}\033[00m" .format(prt))
+def prBlack(prt): print("\033[98m {}\033[00m" .format(prt))
+
+
 class AdditionalUpdatesOptimizer(optimizers.Optimizer):
     def __init__(self, optimizer, additional_updates):
         super(AdditionalUpdatesOptimizer, self).__init__()
