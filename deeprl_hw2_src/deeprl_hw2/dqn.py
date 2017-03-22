@@ -7,7 +7,8 @@ from keras.layers import Lambda, Input
 from keras.models import Model
 
 from deeprl_hw2 import utils
-from objectives import mean_huber_loss
+from deeprl_hw2.objectives import mean_huber_loss
+# from objectives import mean_huber_loss
 
 from ipdb import set_trace as debug
 
@@ -213,7 +214,7 @@ class DQNAgent:
         # prepare batch
         batch = self.memory.sample(self.batch_size)
         state_batch, action_batch, reward_batch, next_state_batch, terminal_batch = \
-            self.preprocessor.process_batch(samples)
+            self.preprocessor.process_batch(batch)
 
         # calculate target 
         if self.use_ddqn:
@@ -242,9 +243,11 @@ class DQNAgent:
 
             # cal q_batch
             q_batch = np.max(target_q,axis=1).flatten()
+
         assert q_batch.shape == (self.batch_size,)
         targets = reward_batch + terminal_batch*self.gamma*q_batch
-        assert targets == (self.batch_size,)
+
+        assert targets.shape == (self.batch_size,)
 
         # prepare for q-update
         targets_batch = np.zeros((self.batch_size, self.nb_actions))

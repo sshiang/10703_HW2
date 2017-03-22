@@ -45,7 +45,7 @@ class SequentialMemory(ReplayMemory):
         self.states  = RingBuffer(self.max_size)
         self.terminals = RingBuffer(self.max_size)
 
-    def _sample_batch_indexes(low, high, size):
+    def _sample_batch_indexes(self, low, high, size):
         if high - low >= size:
             r = xrange(low, high)
             batch_idxs = random.sample(r, size)
@@ -89,14 +89,20 @@ class SequentialMemory(ReplayMemory):
                 if current_idx < 0 or current_terminal:
                     break
                 state0.insert(0, self.states[current_idx])
+
+            print np.array(state0).shape
+
             while len(state0) < self.window_length:
                 state0.insert(0, np.zeros(state0[0].shape))
 
             # fill state1
             state1 = [np.copy(x) for x in state0[1:]]
             state1.append(self.states[idx])
-            assert len(state0) == self.window_length
-            assert len(state1) == len(state0)
+	
+	    assert len(state1) == len(state0)
+
+            state0 = np.transpose(np.array(state0), (1,2,0))
+            state1 = np.transpose(np.array(state1), (1,2,0))
 
             # fill others
             action = self.actions[idx - 1]
