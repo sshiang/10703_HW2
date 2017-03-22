@@ -60,7 +60,8 @@ class DQNAgent:
                  target_update_freq,
                  warmup, #num_burn_in,
                  train_freq,
-                 batch_size):
+                 batch_size,
+                 use_ddqn):
 
         self.model = q_network
         self.preprocessor = preprocessor
@@ -76,7 +77,7 @@ class DQNAgent:
         self.step = 0
         self.rand_policy = lambda: np.random.randint(0, num_actions)
         self.is_training = True
-        self.use_ddqn = False # FIXME
+        self.use_ddqn = use_ddqn
         self.compiled = False
         self.soft_update = True
 
@@ -394,7 +395,7 @@ class DQNAgent:
                 
                 if visualize:
                     env.render(mode='human')
-                    
+
                 # update
                 observation = deepcopy(observation)
                 episode_reward += reward
@@ -403,7 +404,7 @@ class DQNAgent:
 
     def load_weights(self, filepath):
         self.model.load_weights(filepath)
-        self.update_target_model_hard()
+        self.target_model.set_weights(self.model.get_weights())
 
     def save_weights(self, filepath, overwrite=False):
         self.model.save_weights(filepath, overwrite=overwrite)

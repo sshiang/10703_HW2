@@ -23,7 +23,7 @@ from deeprl_hw2.utils import (prRed, prGreen, prYellow)
 from ipdb import set_trace as debug
 
 def create_model(window, input_shape, num_actions,
-                 model_name='q_network'):  # noqa: D103
+                 model_name='dqn'):  # noqa: D103
     """Create the Q-network model.
 
     Use Keras to construct a keras.models.Model instance (you can also
@@ -61,7 +61,7 @@ def create_model(window, input_shape, num_actions,
         H = Flatten()(H)
 
         # FIXME
-        if model_name == 'dueling_dqn':
+        if model_name == 'duel_dqn':
             V = Dense(512, activation='relu')(H)
             V = Dense(1, activation='linear')(V)
 
@@ -149,6 +149,7 @@ def main():  # noqa: D103
 
     parser.add_argument('--debug', dest='debug', action='store_true')
     parser.add_argument('--mode', default='train', type=str)
+    parser.add_argument('--model', default='dqn', type=str, help='Options: dqn/ddqn/duel_dqn')
 
     args = parser.parse_args()
     args.input_shape = tuple((args.input_shape,args.input_shape)) # FIXME
@@ -163,7 +164,7 @@ def main():  # noqa: D103
     num_actions = env.action_space.n
 
     if args.debug: prGreen('initial q network')
-    q_network = create_model(args.window, args.input_shape, num_actions, model_name='q_network') 
+    q_network = create_model(args.window, args.input_shape, num_actions, model_name=args.model) 
 
     if args.debug: prGreen('initial preprocessor')
     preprocessor = PreprocessorSequence([
@@ -193,7 +194,8 @@ def main():  # noqa: D103
         args.target_update_freq,
         args.warmup, # num_burn_in,
         args.train_freq, # train_freq,
-        args.batch_size
+        args.batch_size,
+        args.model_name == 'ddqn',
     )
 
     optimizer = Adam(args.lr)
@@ -210,10 +212,10 @@ def main():  # noqa: D103
         )
     elif args.mode == 'test':
         if args.debug: prGreen('evaluate ...')
-        agent.load_weihts(
+        agent.load_weights(
             '{}-weights.h5f'.format(args.output),
         )
-        agent.evaluate(env,1)
+        agent.evaluate(env,1, visualize=True)
 
     else:
         raise RuntimeError('un-supported mode:{}'.format(args.mode))
