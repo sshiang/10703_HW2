@@ -8,7 +8,7 @@ from keras.layers import Lambda, Input
 from keras.models import Model
 
 from deeprl_hw2 import utils
-from deeprl_hw2.objectives import mean_huber_loss
+from deeprl_hw2.objectives import *
 
 from scipy.misc import imsave
 from ipdb import set_trace as debug
@@ -110,7 +110,7 @@ class DQNAgent:
         def mask_loss(args):
             y_true, y_pred, mask = args
             if loss_func == 'huber_loss':
-                loss = mean_huber_loss(y_true, y_pred) # TODO: check max_grad in original paper
+                loss = huber_loss(y_true, y_pred) # FIXME TODO: check max_grad in original paper
             else:
                 raise RuntimeError('undefined loss_func:{}'.format(loss_func))
             loss *= mask
@@ -337,6 +337,7 @@ class DQNAgent:
               action, reward, done
             )
             if self.step > self.warmup and self.step % self.train_freq == 0:
+                # utils.prGreen('step:{}'.format(self.step))
                 self.update_policy()
 
             episode_steps += 1

@@ -37,6 +37,7 @@ class RingBuffer(object):
         self.start = 0
         self.length = 0
         self.data = [None for _ in range(self.maxlen)]
+        utils.prRed('clear Ring Buffer')
 
 class SequentialMemory(ReplayMemory):
 
@@ -74,7 +75,10 @@ class SequentialMemory(ReplayMemory):
         # create batch indexes
         if indexes is None:
             indexes = self._sample_batch_indexes(0, self.nb_entries - 1, size=batch_size)
-        assert (np.min(indexes) >= 1 and np.max(indexes) < self.nb_entries and len(indexes) == batch_size)
+        indexes = np.array(indexes) + 1
+        assert np.min(indexes) >= 1
+        assert np.max(indexes) < self.nb_entries
+        assert len(indexes) == batch_size
 
         # create samples
         samples = []

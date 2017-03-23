@@ -137,7 +137,7 @@ def main():  # noqa: D103
     parser.add_argument('--rb_size',default=1000000, type=int, help='replay buffer size')
     parser.add_argument('--target_update_freq',default=10000, type=int, help='q target interval')
     parser.add_argument('--warmup',default=200, type=int, help='fill replay buffer')
-    parser.add_argument('--train_freq',default=10000, type=int, help='train_freq')
+    parser.add_argument('--train_freq',default=4, type=int, help='train_freq')
     parser.add_argument('--batch_size',default=32, type=int, help='batch_size') # FIXME check paper
     parser.add_argument('--episode_len',default=100000, type=int, help='max episode length')
 
