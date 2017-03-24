@@ -1,9 +1,15 @@
 """Common functions you may find useful in your implementation."""
 
 import semver
+import numpy as np
 import tensorflow as tf
 from keras.models import model_from_config
 import keras.optimizers as optimizers
+
+import matplotlib.pyplot as plt
+from scipy.misc import imsave
+from scipy.io import savemat
+
 
 def prRed(prt): print("\033[91m {}\033[00m" .format(prt))
 def prGreen(prt): print("\033[92m {}\033[00m" .format(prt))
@@ -13,6 +19,29 @@ def prPurple(prt): print("\033[95m {}\033[00m" .format(prt))
 def prCyan(prt): print("\033[96m {}\033[00m" .format(prt))
 def prLightGray(prt): print("\033[97m {}\033[00m" .format(prt))
 def prBlack(prt): print("\033[98m {}\033[00m" .format(prt))
+
+
+def plot_preprocess_state(step, process_state):
+    temp = np.zeros((168,168))
+    temp[:84,:84] = process_state[:,:,0]
+    temp[:84,84:] = process_state[:,:,1]
+    temp[84:,:84] = process_state[:,:,2]
+    temp[84:,84:] = process_state[:,:,3]
+    imsave('debug/fig/process_state{}.png'.format(step), temp)
+
+
+def plot_reward(fn, dx, step, reward):
+    y = np.mean(reward, axis=0)
+    error=np.std(reward, axis=0)
+                
+    # fig, ax = plt.subplots()
+    x = range(0,reward.shape[1]*dx,dx)
+    fig, ax = plt.subplots(1, 1, figsize=(6, 5))
+    plt.xlabel('Timestep')
+    plt.ylabel('Average Reward')
+    ax.errorbar(x, y, yerr=error, fmt='-o')
+    plt.savefig(fn+'.png')
+    savemat(fn+'.mat', {'reward':reward})
 
 
 class AdditionalUpdatesOptimizer(optimizers.Optimizer):

@@ -10,8 +10,7 @@ from keras.models import Model
 from deeprl_hw2 import utils
 from deeprl_hw2.objectives import *
 
-from scipy.misc import imsave
-from ipdb import set_trace as debug
+import ipdb
 
 class DQNAgent: 
     """Class implementing DQN.
@@ -62,7 +61,8 @@ class DQNAgent:
                  warmup, #num_burn_in,
                  train_freq,
                  batch_size,
-                 use_ddqn):
+                 use_ddqn, 
+                 save_path):
 
         self.model = q_network
         self.preprocessor = preprocessor
@@ -81,6 +81,7 @@ class DQNAgent:
         self.use_ddqn = use_ddqn
         self.compiled = False
         self.soft_update = True
+        self.save_path = save_path
 
 
     def compile(self, optimizer, loss_func):
@@ -191,12 +192,6 @@ class DQNAgent:
             meta = {
                 'is_training': self.is_training
             }
-            # temp = np.zeros((168,168))
-            # temp[:84,:84] = process_state[:,:,0]
-            # temp[:84,84:] = process_state[:,:,1]
-            # temp[84:,:84] = process_state[:,:,2]
-            # temp[84:,84:] = process_state[:,:,3]
-            # imsave('debug/fig/process_state{}.png'.format(self.step), temp)
             q_values = self.calc_q_values(process_state, self.model)
             action = self.policy.select_action(q_values, **meta)
 
@@ -278,7 +273,8 @@ class DQNAgent:
         return metrics
 
 
-    def fit(self, env, num_iterations, max_episode_length=None):
+    def fit(self, env, num_iterations, validate_steps, 
+        max_episode_length=None, validate_episodes=20, debug=False):
         """Fit your model to the provided environment.
 
         Its a good idea to print out things like loss, average reward,
@@ -302,6 +298,10 @@ class DQNAgent:
         max_episode_length: int
           How long a single episode should last before the agent
           resets. Can help exploration.
+        validate_steps: int
+          How many steps to run a validation test
+        validate_episodes: int
+          How many episodes to run for a single validation test
         """
         assert self.compiled
 
@@ -309,6 +309,7 @@ class DQNAgent:
         self.step = 0
         episode = 0
         observation = None
+        validate_rewards = np.array([]).reshape(validate_episodes,0)
         while self.step < num_iterations:
 
             # reset if it is the start of episode
@@ -333,19 +334,38 @@ class DQNAgent:
 
             # add replay memory and update policy            
             self.memory.append(
-              self.preprocessor.process_state_for_memory(observation), 
-              action, reward, done
+                self.preprocessor.process_state_for_memory(observation), 
+                action, reward, done
             )
             if self.step > self.warmup and self.step % self.train_freq == 0:
-                # utils.prGreen('step:{}'.format(self.step))
                 self.update_policy()
 
+            # evaluate
+            if validate_steps > 0 and self.step % validate_steps == 0:
+                validate_reward = self.evaluate(env, validate_episodes, restore=True, debug=debug)
+                validate_rewards = np.hstack([validate_rewards, validate_reward])
+                utils.plot_reward(
+                    '{}/validate_reward'.format(self.save_path),
+                    validate_steps, self.step, validate_rewards,
+                )
+                if debug:
+                    utils.prYellow('[Evaluate] Step_{:07d}: mean_reward:{}'.format(
+                        self.step, np.mean(validate_reward)
+                    ))
+
+            if self.step % (num_iterations/3) == 0:
+                self.save_weights(
+                    '{}/weights-{}.h5f'.format(self.save_path, self.step),
+                    overwrite=True,
+                )
+
+            # update 
             episode_steps += 1
             self.step += 1
 
             observation = deepcopy(observation2)
             if done: # end of episode
-                utils.prGreen('#{}: episode_steps:{} episode_reward:{}'.format(episode,episode_steps,episode_reward))
+                if debug: utils.prGreen('#{}: episode_reward:{} steps:{}'.format(episode,episode_reward,self.step))
                 # # We are in a terminal state but the agent hasn't yet seen it. We therefore
                 # # perform one more forward-backward call and simply ignore the action before
                 # # resetting the environment. We need to pass in `terminal=False` here since
@@ -365,7 +385,7 @@ class DQNAgent:
                 episode += 1
 
 
-    def evaluate(self, env, num_episodes, max_episode_length=None, visualize=False):
+    def evaluate(self, env, num_episodes, max_episode_length=None, visualize=False, restore=False, debug=False):
         """Test your agent with a provided environment.
         
         You shouldn't update your network parameters here. Also if you
@@ -380,9 +400,14 @@ class DQNAgent:
         """
         assert self.compiled
 
+        # store current value and restore in the end of function 
+        if restore:
+            temp_is_training = self.is_training
+            temp_history = self.preprocessor.get_history()
+
         self.is_training = False
-        self.step = 0
         observation = None
+        episode_rewards = []
         for episode in range(num_episodes):
 
             # reset at the start of episode
@@ -412,7 +437,15 @@ class DQNAgent:
                 observation = deepcopy(observation)
                 episode_reward += reward
                 episode_steps += 1
-                self.step += 1          
+
+            if debug: utils.prYellow('[Evaluate] #Episode{}: episode_reward:{}'.format(episode,episode_reward))
+            episode_rewards.append(episode_reward)
+
+        if restore:
+            self.is_training = temp_is_training
+            self.preprocessor.reset(temp_history)
+
+        return np.array(episode_rewards).reshape(-1,1)
 
     def load_weights(self, filepath):
         self.model.load_weights(filepath)

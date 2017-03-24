@@ -3,6 +3,7 @@
 import argparse
 import os
 import random
+import time
 
 import gym
 import numpy as np
@@ -117,6 +118,9 @@ def get_output_folder(parent_dir, env_name):
 
     parent_dir = os.path.join(parent_dir, env_name)
     parent_dir = parent_dir + '-run{}'.format(experiment_id)
+    # os.makedirs(parent_dir, exist_ok=True) # FIXME
+    if not os.path.exists(parent_dir):
+        os.makedirs(parent_dir)
     return parent_dir
 
 
@@ -150,11 +154,12 @@ def main():  # noqa: D103
     parser.add_argument('--debug', dest='debug', action='store_true')
     parser.add_argument('--mode', default='train', type=str)
     parser.add_argument('--model', default='dqn', type=str, help='Options: dqn/ddqn/duel_dqn')
+    parser.add_argument('--validate_steps',default=10000, type=int, help='steps to run validate test')
 
     args = parser.parse_args()
     args.input_shape = tuple((args.input_shape,args.input_shape)) # FIXME
 
-    args.output = get_output_folder(args.output, args.env)
+    args.output = get_output_folder('{}-{}'.format(args.output,args.model), args.env)
     print(args.output)
 
     # here is where you should start up a session,
@@ -196,6 +201,7 @@ def main():  # noqa: D103
         args.train_freq, # train_freq,
         args.batch_size,
         args.model == 'ddqn',
+        args.output
     )
 
     optimizer = Adam(args.lr)
@@ -205,17 +211,18 @@ def main():  # noqa: D103
 
     if args.mode == 'train':    
         if args.debug: prGreen('fit ...')
-        agent.fit(env,args.training_steps) # args.episode_len
+        agent.fit(env,args.training_steps, args.validate_steps, debug=args.debug) # args.episode_len
         agent.save_weights(
-            '{}-weights.h5f'.format(args.output),
+            '{}/weights.h5f'.format(args.output),
             overwrite=True,
         )
     elif args.mode == 'test':
         if args.debug: prGreen('evaluate ...')
         agent.load_weights(
-            '{}-weights.h5f'.format(args.output),
+            '{}/weights.h5f'.format(args.output),
         )
-        agent.evaluate(env,1, visualize=True)
+        agent.warmup = 0 # Hack the select_action func 
+        agent.evaluate(env,100, visualize=True, debug=args.debug)
 
     else:
         raise RuntimeError('un-supported mode:{}'.format(args.mode))

@@ -25,7 +25,7 @@ class HistoryPreprocessor(Preprocessor):
 
     def __init__(self, history_length=1):
         self.history_length = history_length
-        self.reset()
+        self.history = None
 
     def process_state_for_network(self, state):
         """You only want history when you're deciding the current action to take."""
@@ -38,12 +38,12 @@ class HistoryPreprocessor(Preprocessor):
         assert self.history.shape[-1] == self.history_length
         return self.history
 
-    def reset(self):
+    def reset(self, history):
         """Reset the history sequence.
 
         Useful when you start a new episode.
         """
-        self.history = None
+        self.history = history
 
     def get_config(self):
         return {'history_length': self.history_length}
@@ -162,7 +162,6 @@ class PreprocessorSequence(Preprocessor):
     return history.process_state_for_network(state)
     """
     def __init__(self, preprocessors):
-        # FIXME
         self.atari = preprocessors[0]
         self.history = preprocessors[1]
 
@@ -179,5 +178,11 @@ class PreprocessorSequence(Preprocessor):
     def process_reward(self, reward):
         return self.atari.process_reward(reward)
 
-    def reset(self):
-        self.history.reset()
+    def reset(self, history=None):
+        self.history.reset(history)
+
+    def get_history(self):
+        try:
+            return self.history.history.copy()
+        except:
+            return None
