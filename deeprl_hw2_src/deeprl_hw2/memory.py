@@ -70,25 +70,36 @@ class SequentialMemory(ReplayMemory):
     def nb_entries(self):
         return len(self.states)
     
-    def sample(self, batch_size, indexes=None):
+    def sample(self, batch_size, model_name='dqn', indexes=None):
         
         # create batch indexes
         if indexes is None:
-            indexes = self._sample_batch_indexes(0, self.nb_entries - 1, size=batch_size)
+	    if model_name == 'naive':
+                indexes = range(max(0, self.nb_entries-batch_size-1), self.nb_entries-1)
+	    else:
+                indexes = self._sample_batch_indexes(0, self.nb_entries - 1, size=batch_size)
         indexes = np.array(indexes) + 1
         assert np.min(indexes) >= 1
         assert np.max(indexes) < self.nb_entries
         assert len(indexes) == batch_size
 
+
+        count = 0
+
         # create samples
         samples = []
+
         for idx in indexes:
             # if self.states[idx] is the terminal state, resample it
             terminal0 = self.terminals[idx - 2] if idx >= 2 else False
             while terminal0:
-                idx = self._sample_batch_indexes(1, self.nb_entries, size=1)[0]
+	        if model_name == "naive":
+		    count += 1
+		    idx = self.nb_entries-batch_size-1-count
+		else:
+                    idx = self._sample_batch_indexes(1, self.nb_entries, size=1)[0]
                 terminal0 = self.terminals[idx - 2] if idx >= 2 else False
-            assert 1 <= idx < self.nb_entries
+                assert 1 <= idx < self.nb_entries
 
             # fill state0 to window_length size, if encounter terminate, add zero instead
             state0 = [self.states[idx - 1]]

@@ -61,7 +61,7 @@ class DQNAgent:
                  warmup, #num_burn_in,
                  train_freq,
                  batch_size,
-                 use_ddqn, 
+                 model_name, 
                  save_path):
 
         self.model = q_network
@@ -78,7 +78,11 @@ class DQNAgent:
         self.step = 0
         self.rand_policy = lambda: np.random.randint(0, num_actions)
         self.is_training = True
-        self.use_ddqn = use_ddqn
+        self.model_name = model_name
+
+
+	print("model name: " + self.model_name)
+
         self.compiled = False
         self.soft_update = True
         self.save_path = save_path
@@ -160,7 +164,7 @@ class DQNAgent:
         if states.ndim < 4:
             states = states[None,...]
         q_values = model.predict_on_batch(states)
-        assert q_values.shape == (len(states), self.nb_actions)
+	assert q_values.shape == (len(states), self.nb_actions)
         return q_values
 
 
@@ -216,13 +220,14 @@ class DQNAgent:
         
         assert self.is_training
 
+
         # prepare batch
-        batch = self.memory.sample(self.batch_size)
+        batch = self.memory.sample(self.batch_size, self.model_name)
         state_batch, action_batch, reward_batch, next_state_batch, terminal_batch = \
             self.preprocessor.process_batch(batch)
 
         # calculate q
-        if self.use_ddqn:
+	if self.model_name == 'ddqn' : #use_ddqn:
             """ q^{DDQN}_i = Q^{'}(s_{i+1},argmax_a Q(s_{i+1},a))"""
             
             # random switch online_model and target_model? FIXME

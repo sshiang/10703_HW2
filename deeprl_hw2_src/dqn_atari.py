@@ -55,29 +55,33 @@ def create_model(window, input_shape, num_actions,
 
     with tf.name_scope(model_name):
         # Build Convs
-        S = Input(shape=input_shape + (window,))
-        H = Convolution2D(32, 8, 8, activation='relu', subsample=(4, 4))(S)
-        H = Convolution2D(64, 4, 4, activation='relu', subsample=(2, 2))(H)
-        H = Convolution2D(64, 3, 3, activation='relu', subsample=(1, 1))(H)
-        H = Flatten()(H)
-
-        # FIXME
-        if model_name == 'duel_dqn':
-            V = Dense(512, activation='relu')(H)
-            V = Dense(1, activation='linear')(V)
-
-            A = Dense(512, activation='relu')(H)
-            A = Dense(num_actions, activation='linear')(A)
-
-            # Q = V + A - K.mean(A)
-            Q = Lambda(lambda x: x[0] + x[1] - K.mean(x[1], keepdims=True))([V,A])
-
-        elif model_name == "linear":
-          print("linear...")
-	  Q = Dense(num_actions, activation='linear')(H)
+        if model_name == "linear" or model_name == "naive":
+	    print(input_shape + (window,))
+            S = Input(shape=input_shape + (window,))
+	    H = Flatten()(S)
+	    Q = Dense(num_actions, activation='linear')(H)
         else:
-            Q = Dense(512, activation='relu')(H)
-            Q = Dense(num_actions, activation='linear')(Q)
+
+            S = Input(shape=input_shape + (window,))
+            H = Convolution2D(32, 8, 8, activation='relu', subsample=(4, 4))(S)
+            H = Convolution2D(64, 4, 4, activation='relu', subsample=(2, 2))(H)
+            H = Convolution2D(64, 3, 3, activation='relu', subsample=(1, 1))(H)
+            H = Flatten()(H)
+
+            # FIXME
+            if model_name == 'duel_dqn':
+                V = Dense(512, activation='relu')(H)
+                V = Dense(1, activation='linear')(V)
+
+                A = Dense(512, activation='relu')(H)
+                A = Dense(num_actions, activation='linear')(A)
+
+                # Q = V + A - K.mean(A)
+                Q = Lambda(lambda x: x[0] + x[1] - K.mean(x[1], keepdims=True))([V,A])
+
+            else:
+                Q = Dense(512, activation='relu')(H)
+                Q = Dense(num_actions, activation='linear')(Q)
 
         model = Model(input=S, output=Q)
 
@@ -156,7 +160,7 @@ def main():  # noqa: D103
 
     parser.add_argument('--debug', dest='debug', action='store_true')
     parser.add_argument('--mode', default='train', type=str)
-    parser.add_argument('--model', default='dqn', type=str, help='Options: dqn/ddqn/duel_dqn')
+    parser.add_argument('--model', default='dqn', type=str, help='Options: naive/linear/dqn/ddqn/duel_dqn')
     parser.add_argument('--validate_steps',default=10000, type=int, help='steps to run validate test')
 
     args = parser.parse_args()
@@ -203,7 +207,7 @@ def main():  # noqa: D103
         args.warmup, # num_burn_in,
         args.train_freq, # train_freq,
         args.batch_size,
-        args.model == 'ddqn',
+        args.model,
         args.output
     )
 
