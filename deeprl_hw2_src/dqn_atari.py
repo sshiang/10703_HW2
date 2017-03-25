@@ -73,7 +73,8 @@ def create_model(window, input_shape, num_actions,
             Q = Lambda(lambda x: x[0] + x[1] - K.mean(x[1], keepdims=True))([V,A])
 
         elif model_name == "linear":
-            Q = Dense(num_actions, activation='linear')(Q)
+          print("linear...")
+	  Q = Dense(num_actions, activation='linear')(H)
         else:
             Q = Dense(512, activation='relu')(H)
             Q = Dense(num_actions, activation='linear')(Q)
