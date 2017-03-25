@@ -72,6 +72,8 @@ def create_model(window, input_shape, num_actions,
             # Q = V + A - K.mean(A)
             Q = Lambda(lambda x: x[0] + x[1] - K.mean(x[1], keepdims=True))([V,A])
 
+        elif model_name == "linear":
+            Q = Dense(num_actions, activation='linear')(Q)
         else:
             Q = Dense(512, activation='relu')(H)
             Q = Dense(num_actions, activation='linear')(Q)
@@ -126,7 +128,7 @@ def get_output_folder(parent_dir, env_name):
 
 def main():  # noqa: D103
     parser = argparse.ArgumentParser(description='Run DQN on Atari Breakout')
-    parser.add_argument('--env', default='Breakout-v0', help='Atari env name')
+    parser.add_argument('--env', default='Enduro-v0', help='Atari env name')
     parser.add_argument(
         '-o', '--output', default='atari-v0', help='Directory to save data to')
     parser.add_argument('--seed', default=0, type=int, help='Random seed')
