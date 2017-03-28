@@ -4,6 +4,11 @@ import numpy as np
 from copy import deepcopy
 import keras.backend as K
 
+
+
+import gym
+from gym import wrappers
+
 from keras.layers import Lambda, Input
 from keras.models import Model
 
@@ -227,7 +232,7 @@ class DQNAgent:
             self.preprocessor.process_batch(batch)
 
         # calculate q
-	if self.model_name == 'ddqn' : #use_ddqn:
+	if self.model_name == 'ddqn' or self.model_name == 'dlinear' : #use_ddqn:
             """ q^{DDQN}_i = Q^{'}(s_{i+1},argmax_a Q(s_{i+1},a))"""
             
             # random switch online_model and target_model? FIXME
@@ -413,6 +418,9 @@ class DQNAgent:
         self.is_training = False
         observation = None
         episode_rewards = []
+
+        env = wrappers.Monitor(env, "YYY")
+
         for episode in range(num_episodes):
 
             # reset at the start of episode
@@ -449,6 +457,8 @@ class DQNAgent:
         if restore:
             self.is_training = temp_is_training
             self.preprocessor.reset(temp_history)
+
+	#env.monitor.close()
 
         return np.array(episode_rewards).reshape(-1,1)
 
