@@ -6,12 +6,16 @@ import random
 import time
 
 import gym
+from gym import wrappers
+
 import numpy as np
 import tensorflow as tf
 from keras.layers import (Activation, Convolution2D, Dense, Flatten, Input,
                           Permute)
 from keras.models import (Model, Sequential)
 from keras.optimizers import Adam
+from keras.layers.core import Lambda
+from keras import backend as K
 
 import deeprl_hw2 as tfrl
 from deeprl_hw2.dqn import DQNAgent
@@ -55,7 +59,7 @@ def create_model(window, input_shape, num_actions,
 
     with tf.name_scope(model_name):
         # Build Convs
-        if model_name == "linear" or model_name == "naive":
+        if model_name == "linear" or model_name == "dlinear" or model_name == "naive":
 	    print(input_shape + (window,))
             S = Input(shape=input_shape + (window,))
 	    H = Flatten()(S)
@@ -166,7 +170,9 @@ def main():  # noqa: D103
     args = parser.parse_args()
     args.input_shape = tuple((args.input_shape,args.input_shape)) # FIXME
 
-    args.output = get_output_folder('{}-{}'.format(args.output,args.model), args.env)
+
+    if args.mode == "train":
+        args.output = get_output_folder('{}-{}'.format(args.output,args.model), args.env)
     print(args.output)
 
     # here is where you should start up a session,
@@ -225,9 +231,9 @@ def main():  # noqa: D103
         )
     elif args.mode == 'test':
         if args.debug: prGreen('evaluate ...')
-        agent.load_weights(
-            '{}/weights.h5f'.format(args.output),
-        )
+        agent.load_weights(args.output)
+	#    '{}/weights.h5f'.format(args.output),
+	#)
         agent.warmup = 0 # Hack the select_action func 
         agent.evaluate(env,100, visualize=True, debug=args.debug)
 
