@@ -231,11 +231,12 @@ def main():  # noqa: D103
         )
     elif args.mode == 'test':
         if args.debug: prGreen('evaluate ...')
-        agent.load_weights(args.output)
-	#    '{}/weights.h5f'.format(args.output),
-	#)
+        agent.load_weights(
+            '{}/weights.h5f'.format(args.output),
+        )
         agent.warmup = 0 # Hack the select_action func 
-        agent.evaluate(env,100, visualize=True, debug=args.debug)
+        rewards = agent.evaluate(env,100, debug=args.debug)
+        prGreen('Evaluate Summary: mean:{} std:{}'.format(np.mean(rewards), np.std(rewards)))
 
     else:
         raise RuntimeError('un-supported mode:{}'.format(args.mode))
