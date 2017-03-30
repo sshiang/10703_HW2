@@ -25,7 +25,7 @@ from deeprl_hw2.policy import *
 from deeprl_hw2.memory import SequentialMemory
 from deeprl_hw2.utils import (prRed, prGreen, prYellow)
 
-from ipdb import set_trace as debug
+# from ipdb import set_trace as debug
 
 def create_model(window, input_shape, num_actions,
                  model_name='dqn'):  # noqa: D103
@@ -58,21 +58,21 @@ def create_model(window, input_shape, num_actions,
     """
 
     with tf.name_scope(model_name):
-        # Build Convs
+        
+        # Linear model
         if model_name == "linear" or model_name == "dlinear" or model_name == "naive":
-            print(input_shape + (window,))
             S = Input(shape=input_shape + (window,))
             H = Flatten()(S)
             Q = Dense(num_actions, activation='linear')(H)
-        else:
 
+        # Deep model
+        elif model_name =='duel_dqn' or model_name == 'dqn' or model_name == 'ddqn' :
             S = Input(shape=input_shape + (window,))
             H = Convolution2D(32, 8, 8, activation='relu', subsample=(4, 4))(S)
             H = Convolution2D(64, 4, 4, activation='relu', subsample=(2, 2))(H)
             H = Convolution2D(64, 3, 3, activation='relu', subsample=(1, 1))(H)
             H = Flatten()(H)
 
-            # FIXME
             if model_name == 'duel_dqn':
                 V = Dense(512, activation='relu')(H)
                 V = Dense(1, activation='linear')(V)
@@ -86,6 +86,9 @@ def create_model(window, input_shape, num_actions,
             else:
                 Q = Dense(512, activation='relu')(H)
                 Q = Dense(num_actions, activation='linear')(Q)
+
+        else:
+            raise RuntimeError('undefined model_name:{}'.format(model_name))
 
         model = Model(input=S, output=Q)
 
@@ -112,7 +115,7 @@ def get_output_folder(parent_dir, env_name):
     parent_dir/run_dir
       Path to this run's save directory.
     """
-    # os.makedirs(parent_dir, exist_ok=True) # FIXME
+    # os.makedirs(parent_dir, exist_ok=True)
     if not os.path.exists(parent_dir):
         os.makedirs(parent_dir)
     experiment_id = 0
@@ -129,7 +132,7 @@ def get_output_folder(parent_dir, env_name):
 
     parent_dir = os.path.join(parent_dir, env_name)
     parent_dir = parent_dir + '-run{}'.format(experiment_id)
-    # os.makedirs(parent_dir, exist_ok=True) # FIXME
+    # os.makedirs(parent_dir, exist_ok=True)
     if not os.path.exists(parent_dir):
         os.makedirs(parent_dir)
     return parent_dir
@@ -153,7 +156,7 @@ def main():  # noqa: D103
     parser.add_argument('--target_update_freq',default=10000, type=int, help='q target interval')
     parser.add_argument('--warmup',default=200, type=int, help='fill replay buffer')
     parser.add_argument('--train_freq',default=4, type=int, help='train_freq')
-    parser.add_argument('--batch_size',default=32, type=int, help='batch_size') # FIXME check paper
+    parser.add_argument('--batch_size',default=32, type=int, help='batch_size')
     parser.add_argument('--episode_len',default=100000, type=int, help='max episode length')
 
     # policy options
@@ -169,16 +172,14 @@ def main():  # noqa: D103
     parser.add_argument('--validate_steps',default=10000, type=int, help='steps to run validate test')
 
     args = parser.parse_args()
-    args.input_shape = tuple((args.input_shape,args.input_shape)) # FIXME
+    args.input_shape = tuple((args.input_shape,args.input_shape))
 
 
     if args.mode == "train":
         args.output = get_output_folder('{}-{}'.format(args.output,args.model), args.env)
     prGreen(args.output)
 
-    # here is where you should start up a session,
-    # create your DQN agent, create your model, etc.
-    # then you can run your fit method.
+    # Create Env, Agent, and compile it
     env = gym.make(args.env)
     num_actions = env.action_space.n
 
@@ -212,7 +213,7 @@ def main():  # noqa: D103
         args.gamma,
         args.target_update_freq,
         args.warmup if args.mode == 'train' else 0,
-        args.train_freq, # train_freq,
+        args.train_freq,
         args.batch_size,
         args.model,
         args.output
@@ -223,6 +224,7 @@ def main():  # noqa: D103
     if args.debug: prGreen('compile ...')
     agent.compile(optimizer, 'huber_loss')
 
+    # Start experiment
     if args.mode == 'train':    
         if args.debug: prGreen('fit ...')
         agent.fit(env,args.training_steps, args.validate_steps, debug=args.debug) # args.episode_len

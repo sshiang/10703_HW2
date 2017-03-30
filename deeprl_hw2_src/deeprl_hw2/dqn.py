@@ -15,7 +15,7 @@ from keras.models import Model
 from deeprl_hw2 import utils
 from deeprl_hw2.objectives import *
 
-import ipdb
+# import ipdb
 
 class DQNAgent: 
     """Class implementing DQN.
@@ -44,7 +44,7 @@ class DQNAgent:
       Frequency to update the target network. You can either provide a
       number representing a soft target update (see utils.py) or a
       hard target update (see utils.py and Atari paper.)
-    num_burn_in: int
+    warmup: int
       Before you begin updating the Q-network your replay memory has
       to be filled up with some number of samples. This number says
       how many.
@@ -54,6 +54,10 @@ class DQNAgent:
       replay memory, for every Q-network update that you run.
     batch_size: int
       How many samples in each minibatch.
+    model_name: str
+      Affect which update rule to be applied for policy back-propagate and batch sample
+    save_path: str
+      Where to save temporary weight during fitting
     """
     def __init__(self,
                  num_actions,
@@ -63,7 +67,7 @@ class DQNAgent:
                  policy,
                  gamma,
                  target_update_freq,
-                 warmup, #num_burn_in,
+                 warmup, 
                  train_freq,
                  batch_size,
                  model_name, 
@@ -85,8 +89,7 @@ class DQNAgent:
         self.is_training = True
         self.model_name = model_name
 
-
-        print("model name: " + self.model_name)
+        # print("model name: " + self.model_name)
 
         self.compiled = False
         self.soft_update = True
@@ -120,7 +123,7 @@ class DQNAgent:
         def mask_loss(args):
             y_true, y_pred, mask = args
             if loss_func == 'huber_loss':
-                loss = huber_loss(y_true, y_pred) # FIXME TODO: check max_grad in original paper
+                loss = huber_loss(y_true, y_pred)
             else:
                 raise RuntimeError('undefined loss_func:{}'.format(loss_func))
             loss *= mask
@@ -138,7 +141,7 @@ class DQNAgent:
             updates = utils.get_hard_target_model_updates(self.target_model, self.model)
         optimizer = utils.AdditionalUpdatesOptimizer(optimizer, updates)
 
-        # build metrics TODO
+        # build metrics
         metrics = lambda y_true, y_pred: K.mean(K.max(y_pred, axis=-1))
 
         # build trainable model
@@ -151,7 +154,6 @@ class DQNAgent:
         ]
         trainable_model.compile(optimizer=optimizer, loss=losses, metrics=combined_metrics)
         self.trainable_model = trainable_model
-        # debug()
 
         # finish
         self.compiled = True
@@ -328,8 +330,6 @@ class DQNAgent:
                 observation = deepcopy(env.reset())
                 episode_steps = 0
                 episode_reward = 0.
-
-                # TODO random start (keras-rl has this option)
                 
             assert (observation is not None and episode_steps is not None and episode_reward is not None)
 
@@ -407,6 +407,23 @@ class DQNAgent:
 
         You can also call the render function here if you want to
         visually inspect your policy.
+        
+        Parameters
+        ----------
+        env: gym.Env
+          This is your Atari environment. You should wrap the
+          environment using the wrap_atari_env function in the
+          utils.py
+        num_episodes: int
+        max_episode_length: int
+          How long a single episode should last before the agent
+          resets. Can help exploration.
+        visualize: bool
+        restore: bool
+          Store the temporary value (such as history state) then restore 
+          them in the end of the funtion. This is useful when we just 
+          want to perform evaluation during fitting.
+
         """
         assert self.compiled
 
@@ -426,8 +443,6 @@ class DQNAgent:
             observation = deepcopy(env.reset())
             episode_steps = 0
             episode_reward = 0.
-
-            # TODO random start (keras-rl has this option)
                 
             assert observation is not None
 

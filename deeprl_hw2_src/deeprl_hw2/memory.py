@@ -6,9 +6,15 @@ from collections import deque, namedtuple
 from deeprl_hw2 import utils
 from deeprl_hw2.core import ReplayMemory, Sample
 
-from ipdb import set_trace as debug
+# from ipdb import set_trace as debug
 
 class RingBuffer(object):
+    """Implementation of Ring Buffer
+    Parameters
+    ----------
+    maxlen: int
+      maximum length of the buffer
+    """
     def __init__(self, maxlen):
         self.maxlen = maxlen
         self.clear()
@@ -37,10 +43,11 @@ class RingBuffer(object):
         self.start = 0
         self.length = 0
         self.data = [None for _ in range(self.maxlen)]
-        utils.prRed('clear Ring Buffer')
+        # utils.prRed('clear Ring Buffer')
 
 class SequentialMemory(ReplayMemory):
-
+    """ Implementation of the replay memory used for this assignment
+    """
     def __init__(self, *args):
         super(SequentialMemory, self).__init__(*args)
         self.actions = RingBuffer(self.max_size)
@@ -56,7 +63,6 @@ class SequentialMemory(ReplayMemory):
                 r = range(low, high) 
             batch_idxs = random.sample(r, size)
         else:
-            # warnings.warn('Not enough entries to sample without replacement. Consider increasing your warm-up phase to avoid oversampling!')
             batch_idxs = np.random.random_integers(low, high - 1, size=size)
         return batch_idxs
 

@@ -22,6 +22,8 @@ def prBlack(prt): print("\033[98m {}\033[00m" .format(prt))
 
 
 def plot_preprocess_state(step, process_state):
+    """Debug: save preprocess state
+    """
     temp = np.zeros((168,168))
     temp[:84,:84] = process_state[:,:,0]
     temp[:84,84:] = process_state[:,:,1]
@@ -31,6 +33,8 @@ def plot_preprocess_state(step, process_state):
 
 
 def plot_reward(fn, dx, step, reward):
+    """Save average reward over timestep
+    """
     y = np.mean(reward, axis=0)
     error=np.std(reward, axis=0)
                 
@@ -45,6 +49,8 @@ def plot_reward(fn, dx, step, reward):
 
 
 class AdditionalUpdatesOptimizer(optimizers.Optimizer):
+    """Add additional update to the keras optimizer
+    """
     def __init__(self, optimizer, additional_updates):
         super(AdditionalUpdatesOptimizer, self).__init__()
         self.optimizer = optimizer
@@ -93,7 +99,13 @@ def get_uninitialized_variables(variables=None):
 
 
 def clone_model(model):
-    # Requires Keras 1.0.7 since get_config has breaking changes.
+    """Clone model
+    Returns
+    -------
+    keras.models.Model
+      The cloned model.
+    """
+
     config = {
         'class_name': model.__class__.__name__,
         'config': model.get_config(),
@@ -103,7 +115,7 @@ def clone_model(model):
     return clone
 
 def get_soft_target_model_updates(target, source, tau):
-    r"""Return list of target model update ops.
+    """Return list of target model update ops.
 
     These are soft target updates. Meaning that the target values are
     slowly adjusted, rather than directly copied over from the source
