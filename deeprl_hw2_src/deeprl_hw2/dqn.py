@@ -419,8 +419,6 @@ class DQNAgent:
         observation = None
         episode_rewards = []
 
-        env = wrappers.Monitor(env, "YYY")
-
         for episode in range(num_episodes):
 
             # reset at the start of episode
@@ -457,8 +455,6 @@ class DQNAgent:
         if restore:
             self.is_training = temp_is_training
             self.preprocessor.reset(temp_history)
-
-	#env.monitor.close()
 
         return np.array(episode_rewards).reshape(-1,1)
 

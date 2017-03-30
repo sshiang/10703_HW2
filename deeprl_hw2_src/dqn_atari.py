@@ -60,10 +60,10 @@ def create_model(window, input_shape, num_actions,
     with tf.name_scope(model_name):
         # Build Convs
         if model_name == "linear" or model_name == "dlinear" or model_name == "naive":
-	    print(input_shape + (window,))
+            print(input_shape + (window,))
             S = Input(shape=input_shape + (window,))
-	    H = Flatten()(S)
-	    Q = Dense(num_actions, activation='linear')(H)
+            H = Flatten()(S)
+            Q = Dense(num_actions, activation='linear')(H)
         else:
 
             S = Input(shape=input_shape + (window,))
@@ -164,6 +164,7 @@ def main():  # noqa: D103
 
     parser.add_argument('--debug', dest='debug', action='store_true')
     parser.add_argument('--mode', default='train', type=str)
+    parser.add_argument('--record', default='', type=str)
     parser.add_argument('--model', default='dqn', type=str, help='Options: naive/linear/dqn/ddqn/duel_dqn')
     parser.add_argument('--validate_steps',default=10000, type=int, help='steps to run validate test')
 
@@ -173,7 +174,7 @@ def main():  # noqa: D103
 
     if args.mode == "train":
         args.output = get_output_folder('{}-{}'.format(args.output,args.model), args.env)
-    print(args.output)
+    prGreen(args.output)
 
     # here is where you should start up a session,
     # create your DQN agent, create your model, etc.
@@ -210,7 +211,7 @@ def main():  # noqa: D103
         policy,
         args.gamma,
         args.target_update_freq,
-        args.warmup, # num_burn_in,
+        args.warmup if args.mode == 'train' else 0,
         args.train_freq, # train_freq,
         args.batch_size,
         args.model,
@@ -231,12 +232,22 @@ def main():  # noqa: D103
         )
     elif args.mode == 'test':
         if args.debug: prGreen('evaluate ...')
-        agent.load_weights(
-            '{}/weights.h5f'.format(args.output),
-        )
-        agent.warmup = 0 # Hack the select_action func 
-        rewards = agent.evaluate(env,100, debug=args.debug)
+        agent.load_weights('{}/weights.h5f'.format(args.output))
+        rewards = agent.evaluate(env,100, debug=args.debug, record=args.record)
         prGreen('Evaluate Summary: mean:{} std:{}'.format(np.mean(rewards), np.std(rewards)))
+    
+    elif args.mode =='record':
+
+        for frame in [0,1666666, 3333332, 4999998]:
+            env = gym.make(args.env)
+            env = wrappers.Monitor(env, args.record+str(frame), force=True)
+
+            if args.debug: prGreen('record frame {}...'.format(frame))
+            agent.load_weights('{}/weights-{}.h5f'.format(args.output, frame))
+            rewards = agent.evaluate(env,1,debug=args.debug)
+            prGreen('Evaluate Summary: mean{}, std:{}'.format(np.mean(rewards), np.std(rewards)))
+            
+            env.close()
 
     else:
         raise RuntimeError('un-supported mode:{}'.format(args.mode))
