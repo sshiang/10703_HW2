@@ -86,7 +86,7 @@ class DQNAgent:
         self.model_name = model_name
 
 
-	print("model name: " + self.model_name)
+        print("model name: " + self.model_name)
 
         self.compiled = False
         self.soft_update = True
@@ -169,7 +169,7 @@ class DQNAgent:
         if states.ndim < 4:
             states = states[None,...]
         q_values = model.predict_on_batch(states)
-	assert q_values.shape == (len(states), self.nb_actions)
+        assert q_values.shape == (len(states), self.nb_actions)
         return q_values
 
 
@@ -232,10 +232,10 @@ class DQNAgent:
             self.preprocessor.process_batch(batch)
 
         # calculate q
-	if self.model_name == 'ddqn' or self.model_name == 'dlinear' : #use_ddqn:
+        if self.model_name == 'ddqn' or self.model_name == 'dlinear' :
             """ q^{DDQN}_i = Q^{'}(s_{i+1},argmax_a Q(s_{i+1},a))"""
             
-            # random switch online_model and target_model? FIXME
+            # random switch online_model and target_model
             m1, m2 = (self.model, self.target_model) if np.random.rand() < 0.5 else (self.target_model,self.model)
             
             # cal actions based on online_model(m1)

@@ -74,9 +74,9 @@ class SequentialMemory(ReplayMemory):
         
         # create batch indexes
         if indexes is None:
-	    if model_name == 'naive':
+            if model_name == 'naive':
                 indexes = range(max(0, self.nb_entries-batch_size-1), self.nb_entries-1)
-	    else:
+            else:
                 indexes = self._sample_batch_indexes(0, self.nb_entries - 1, size=batch_size)
         indexes = np.array(indexes) + 1
         assert np.min(indexes) >= 1
@@ -93,10 +93,10 @@ class SequentialMemory(ReplayMemory):
             # if self.states[idx] is the terminal state, resample it
             terminal0 = self.terminals[idx - 2] if idx >= 2 else False
             while terminal0:
-	        if model_name == "naive":
-		    count += 1
-		    idx = self.nb_entries-batch_size-1-count
-		else:
+                if model_name == "naive":
+                    count += 1
+                    idx = self.nb_entries-batch_size-1-count
+                else:
                     idx = self._sample_batch_indexes(1, self.nb_entries, size=1)[0]
                 terminal0 = self.terminals[idx - 2] if idx >= 2 else False
                 assert 1 <= idx < self.nb_entries
@@ -115,12 +115,8 @@ class SequentialMemory(ReplayMemory):
             # fill state1
             state1 = [np.copy(x) for x in state0[1:]]
             state1.append(self.states[idx])
-            # debug()
             assert len(state0) == self.window_length
             assert len(state1) == len(state0)
-
-            state0 = np.transpose(np.array(state0), (1,2,0))
-            state1 = np.transpose(np.array(state1), (1,2,0))
 
             # fill others
             action = self.actions[idx - 1]
@@ -128,6 +124,8 @@ class SequentialMemory(ReplayMemory):
             terminal1 = self.terminals[idx - 1]
 
             # build sample
+            state0 = np.transpose(np.array(state0), (1,2,0))
+            state1 = np.transpose(np.array(state1), (1,2,0))
             samples.append(
                 Sample(state0, action, reward, state1, terminal1)
             )
